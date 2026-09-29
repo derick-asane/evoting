@@ -1,26 +1,237 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ---------------------------------------------------------------------------
+   Tokens
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+   Light and dark are both selected, not flipped. The series slots are the
+   validated categorical palette (see README): assigned in fixed order, never
+   cycled, so a candidate keeps their colour whatever the ranking does.
+   --------------------------------------------------------------------------- */
+
+:root {
+  color-scheme: light;
+
+  --page: #f4f6f9;
+  --page-deep: #e9edf3;
+  --surface: #ffffff;
+  --surface-muted: #f4f6f9;
+  --surface-sunken: #eef1f6;
+
+  --ink: #0e1420;
+  --ink-soft: #46516a;
+  --ink-faint: #626e88;
+  --line: #dde3ec;
+  --line-strong: #c6cfdd;
+  /* Form-control borders carry meaning: they are the only thing marking where
+     a field is, so WCAG 1.4.11 wants 3:1. Card outlines are decorative and
+     stay light. */
+  --line-control: #868f9d;
+
+  --brand: #1d3f9e;
+  --brand-bright: #2f6bdd;
+  --brand-ink: #ffffff;
+  --brand-wash: #e9effc;
+
+  --gold: #a9791f;
+  --gold-wash: #fbf2de;
+
+  --positive: #0f7a43;
+  --positive-wash: #e4f4ea;
+  --warning: #92610c;
+  --warning-wash: #fcf1dc;
+  --danger: #b02318;
+  --danger-wash: #fdeae8;
+
+  /* Categorical series, validated against #ffffff */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  --shadow-sm: 0 1px 2px rgb(14 20 32 / 0.06), 0 1px 3px rgb(14 20 32 / 0.04);
+  --shadow-md: 0 2px 4px rgb(14 20 32 / 0.04), 0 8px 20px -6px rgb(14 20 32 / 0.10);
+  --shadow-lg: 0 4px 8px rgb(14 20 32 / 0.04), 0 24px 48px -12px rgb(14 20 32 / 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --page: #0a0d13;
+    --page-deep: #06080c;
+    --surface: #12151a;
+    --surface-muted: #181d25;
+    --surface-sunken: #0d1117;
+
+    --ink: #eef2f8;
+    --ink-soft: #a7b2c6;
+    --ink-faint: #7d8799;
+    --line: #242c38;
+    --line-strong: #364052;
+    --line-control: #5e687a;
+
+    --brand: #6f9bff;
+    --brand-bright: #8fb2ff;
+    --brand-ink: #08101f;
+    --brand-wash: #16203a;
+
+    --gold: #e0b45e;
+    --gold-wash: #241e0e;
+
+    --positive: #4ec98a;
+    --positive-wash: #10251a;
+    --warning: #e3b345;
+    --warning-wash: #26200f;
+    --danger: #ff8d82;
+    --danger-wash: #2b1512;
+
+    /* Same eight hues, stepped for the dark surface */
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #008300;
+    --series-7: #9085e9;
+    --series-8: #e66767;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.5);
+    --shadow-md: 0 2px 4px rgb(0 0 0 / 0.4), 0 8px 20px -6px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 4px 8px rgb(0 0 0 / 0.4), 0 24px 48px -12px rgb(0 0 0 / 0.7);
   }
 }
 
+@theme inline {
+  --color-page: var(--page);
+  --color-page-deep: var(--page-deep);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-control: var(--line-control);
+
+  --color-brand: var(--brand);
+  --color-brand-bright: var(--brand-bright);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-wash: var(--brand-wash);
+
+  --color-gold: var(--gold);
+  --color-gold-wash: var(--gold-wash);
+
+  --color-positive: var(--positive);
+  --color-positive-wash: var(--positive-wash);
+  --color-warning: var(--warning);
+  --color-warning-wash: var(--warning-wash);
+  --color-danger: var(--danger);
+  --color-danger-wash: var(--danger-wash);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-display);
+
+  --shadow-card: var(--shadow-sm);
+  --shadow-raised: var(--shadow-md);
+  --shadow-float: var(--shadow-lg);
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------------------
+   Decorative layers
+   --------------------------------------------------------------------------- */
+
+/* Faint engraved grid, the way a ballot paper is ruled. */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, var(--line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Soft brand light behind the hero. */
+.bg-aurora {
+  background-image:
+    radial-gradient(60% 70% at 12% 8%, color-mix(in oklab, var(--brand) 22%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 60% at 88% 0%, color-mix(in oklab, var(--series-7) 18%, transparent) 0%, transparent 62%),
+    radial-gradient(70% 90% at 50% 110%, color-mix(in oklab, var(--series-3) 12%, transparent) 0%, transparent 65%);
+}
+
+/* Hairline gradient rule, used to close sections. */
+.rule-fade {
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--line-strong), transparent);
+}
+
+/* A card whose border brightens toward the brand on hover. */
+.card-hover {
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+.card-hover:hover {
+  border-color: color-mix(in oklab, var(--brand) 45%, var(--line));
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-hover {
+    transition: none;
+  }
+  .card-hover:hover {
+    transform: none;
+  }
+}
+
+/* Numerals that line up in tables and tallies. */
+.numeric {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------------------------------------------------------------------------
+   Keyboard
+   --------------------------------------------------------------------------- */
+
+/* One visible ring for everything focusable. Without this a keyboard user has
+   no idea where they are; :focus-visible keeps it off for mouse clicks. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Jumps past the header straight to the page content. Visible only once
+   focused, which is the first Tab stop on every page. */
+.skip-link {
+  position: absolute;
+  left: 50%;
+  top: 0.5rem;
+  translate: -50% -200%;
+  z-index: 100;
+  padding: 0.6rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--brand);
+  color: var(--brand-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: translate 120ms ease;
+}
+.skip-link:focus {
+  translate: -50% 0;
 }

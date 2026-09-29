@@ -1,0 +1,350 @@
+// Off-chain records only.
+//
+// Nothing here is the election. Ballots, tallies and the voter roll live in
+// each election's contract; this database holds the ordinary institutional
+// records that must stay private — who is enrolled, who has an account, and
+// which wallet an institution administers its elections from.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EnrolmentStatus {
+  enrolled
+  graduated
+  withdrawn
+}
+
+enum NotificationKind {
+  voting_open
+  voting_closed
+  /// Raised the moment a ballot is submitted under a student's account.
+  ///
+  /// This is the detection half of impersonation: nothing can tell a student
+  /// from someone who has their password, but the real student finding an
+  /// alert for a ballot they did not cast is how the committee hears about it.
+  ballot_cast
+}
+
+model University {
+  id           String @id @default(uuid())
+  /// URL-safe identifier used in public links, e.g. /en/u/state-university.
+  slug         String @unique
+  name         String
+  contactEmail String @unique
+
+  passwordHash String
+  salt         String
+
+  /// The wallet this university administers its elections with.
+  walletAddress      String
+  /// That wallet's key, encrypted at rest (AES-256-GCM).
+  encryptedWalletKey String
+
+  createdAt DateTime @default(now())
+
+  elections     Election[]
+  students      Student[]
+  notifications  Notification[]
+  unionMembers   UnionMember[]
+  passwordResets PasswordReset[]
+  auditEvents    AuditEvent[]
+
+  @@map("universities")
+}
+
+model Election {
+  id           String     @id @default(uuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  title String
+  /// The contract this election lives in. One contract per election.
+  address         String
+  deploymentBlock Int
+  createdAt       DateTime @default(now())
+
+  /// Mirror of the ballot as deployed: [{ title, candidates: [{ name, party }] }].
+  ///
+  /// The contract remains the authority — every page reads tallies and
+  /// candidates from it, never from here. This exists only so a local chain
+  /// that has been restarted can be rebuilt without retyping the ballot.
+  ballotSnapshot Json?
+
+  /// Whether a ballot needs a committee check-in before it can be cast.
+  ///
+  /// Off, a password is all that stands between a stolen credential and a
+  /// ballot. On, a committee member has to match a face to a student card at
+  /// a desk first. That is the only control here that survives a student
+  /// handing their password over willingly, which no amount of cryptography
+  /// can detect — see README, "What this cannot do".
+  supervised Boolean @default(false)
+
+  rollEntries       RollEntry[]
+  notifications     Notification[]
+  candidateProfiles CandidateProfile[]
+  votingPasses      VotingPass[]
+
+  @@index([universityId, createdAt])
+  @@map("elections")
+}
+
+/// One student, checked in at a desk, cleared to cast one ballot.
+///
+/// Short-lived and single-use on purpose: it is a record that a named
+/// committee member looked at a student card at a specific minute, not a
+/// standing permission. If the student walks away without voting it expires
+/// on its own rather than leaving the account open.
+model VotingPass {
+  id String @id @default(uuid())
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  electionId String
+  election   Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  /// The committee account that checked the student in, so a disputed pass
+  /// leads back to a person rather than to "the system".
+  issuedBy  String
+  issuedAt  DateTime  @default(now())
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  @@index([studentId, electionId, usedAt])
+  @@index([electionId, issuedAt])
+  @@map("voting_passes")
+}
+
+model Student {
+  id           String     @id @default(uuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  /// The matriculation number, normalised (trimmed, upper-cased).
+  studentId String
+  fullName  String
+  programme String @default("")
+
+  status          EnrolmentStatus @default(enrolled)
+  statusChangedAt DateTime?
+
+  /// Set when the student activates their account and chooses a password.
+  passwordHash String?
+  salt         String?
+  activatedAt  DateTime?
+
+  rollEntries    RollEntry[]
+  notifications  Notification[]
+  passwordResets PasswordReset[]
+  votingPasses   VotingPass[]
+
+  // One record per student per institution; the same number at a different
+  // university is a different person.
+  @@unique([universityId, studentId])
+  @@index([universityId, status])
+  @@map("students")
+}
+
+/// A student written to one election's on-chain roll.
+///
+/// Per-election rather than a flag on the student, which is what stops a
+/// graduate appearing on next year's roll while leaving last year's intact.
+model RollEntry {
+  studentId  String
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  electionId String
+  election   Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  writtenAt DateTime @default(now())
+
+  @@id([studentId, electionId])
+  @@map("roll_entries")
+}
+
+/// An uploaded image.
+///
+/// Stored as bytes in Postgres rather than on disk: these are a handful of
+/// small portraits, and keeping them in the database means no orphaned files,
+/// no writable upload directory, and backups that actually contain the photos.
+/// Swap for object storage if this ever holds thousands of images.
+model Photo {
+  id          String   @id @default(uuid())
+  contentType String
+  bytes       Bytes
+  byteSize    Int
+  createdAt   DateTime @default(now())
+
+  candidateProfiles CandidateProfile[]
+  unionMembers      UnionMember[]
+
+  @@map("photos")
+}
+
+/// Off-chain detail for a candidate who exists on-chain.
+///
+/// The contract stores only a name, a party and a tally — everything a vote
+/// depends on. A face and a manifesto are presentation, so they live here,
+/// keyed to the candidate's position on the on-chain ballot.
+model CandidateProfile {
+  id         String   @id @default(uuid())
+  electionId String
+  election   Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  /// Index into the contract's position array.
+  positionIndex  Int @default(0)
+  /// Index into that position's candidate array.
+  candidateIndex Int
+
+  photoId String?
+  photo   Photo?  @relation(fields: [photoId], references: [id], onDelete: SetNull)
+
+  manifesto String?
+  updatedAt DateTime @updatedAt
+
+  @@unique([electionId, positionIndex, candidateIndex])
+  @@map("candidate_profiles")
+}
+
+/// A member of the students' union, in a hierarchy.
+///
+/// `parentId` makes this a tree: the president sits at the root, officers
+/// below, ordinary members below them. Purely informational — voters read it
+/// before voting; nothing here affects eligibility or the count.
+model UnionMember {
+  id           String     @id @default(uuid())
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  fullName String
+  role     String
+  bio      String?
+
+  photoId String?
+  photo   Photo?  @relation(fields: [photoId], references: [id], onDelete: SetNull)
+
+  /// Null for the root of the tree.
+  parentId String?
+  parent   UnionMember?  @relation("UnionHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children UnionMember[] @relation("UnionHierarchy")
+
+  /// Sort position among siblings.
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([universityId, parentId, position])
+  @@map("union_members")
+}
+
+/// Failed sign-in counter, one row per thing being throttled.
+///
+/// Rows exist for identifiers that have never been seen, so a locked response
+/// cannot be used to discover whether an account exists.
+model AuthThrottle {
+  id String @id @default(uuid())
+
+  /// "student", "university" or "ip".
+  scope String
+  /// Normalised key within that scope.
+  identifier String
+
+  failedCount   Int       @default(0)
+  windowStarted DateTime  @default(now())
+  lockedUntil   DateTime?
+  lastFailedAt  DateTime  @default(now())
+
+  @@unique([scope, identifier])
+  @@index([lockedUntil])
+  @@map("auth_throttle")
+}
+
+/// Why a code was issued.
+///
+/// The mechanism is identical either way — the difference is how long the code
+/// lives. An activation code is printed, cut up and handed out over days, so it
+/// outlives a reset code issued to one student standing at the desk.
+enum ResetPurpose {
+  activation
+  reset
+}
+
+/// A single-use code for setting a password.
+///
+/// Only the hash is stored, so the database cannot be read to recover a live
+/// code. Students have no email address on file, so a committee member issues
+/// the code in person after checking a student card — a stronger identity check
+/// than an emailed link, and the only thing standing between a known
+/// matriculation number and someone else's ballot.
+model PasswordReset {
+  id String @id @default(uuid())
+
+  studentRowId String?
+  student      Student? @relation(fields: [studentRowId], references: [id], onDelete: Cascade)
+
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  purpose   ResetPurpose @default(reset)
+  tokenHash String       @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([studentRowId])
+  @@map("password_resets")
+}
+
+/// An append-only record of what the committee did, and when.
+///
+/// The chain already proves what happened to the ballot. This covers the
+/// off-chain half — who added a roster, who opened the polls — which is what
+/// gets asked about when a result is disputed.
+model AuditEvent {
+  id String @id @default(uuid())
+
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  /// Who did it, e.g. "committee:votes@uni.edu" or "student:CS2021001".
+  actor String
+  /// Machine-readable key, e.g. "phase.voting_opened".
+  action String
+  /// One human-readable line.
+  summary String
+
+  targetId  String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([universityId, createdAt])
+  @@map("audit_events")
+}
+
+model Notification {
+  id String @id @default(uuid())
+
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  electionId   String
+  election     Election   @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  kind  NotificationKind
+  title String
+  body  String
+
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  // One alert of a given kind per student per election, enforced by the
+  // database rather than by a de-dupe pass in application code.
+  @@unique([studentId, electionId, kind])
+  @@index([studentId, createdAt])
+  @@map("notifications")
+}

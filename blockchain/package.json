@@ -1,0 +1,19 @@
+{
+  "name": "evoting-blockchain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "node": "hardhat node",
+    "compile": "hardhat build",
+    "test": "hardhat test",
+    "export": "hardhat build && node scripts/export-artifact.ts"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@types/node": "^26.6.2",
+    "hardhat": "^3.17.0",
+    "typescript": "^7.0.2",
+    "viem": "^2.56.8"
+  }
+}

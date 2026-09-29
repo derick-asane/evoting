@@ -3,24 +3,47 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "prisma generate && next dev",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed": "node --conditions=react-server --import tsx --env-file=.env --env-file=.env.local scripts/seed-demo.mts",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "admin:reset": "node --conditions=react-server --import tsx --env-file=.env --env-file=.env.local scripts/reset-committee-password.mts",
+    "chain:rebuild": "node --conditions=react-server --import tsx --env-file=.env --env-file=.env.local scripts/rebuild-chain.mts",
+    "verify": "node --import tsx --env-file=.env --env-file=.env.local scripts/verify-election.mts",
+    "audit:a11y": "node --import tsx scripts/audit-accessibility.mts",
+    "audit:contrast": "node --import tsx scripts/audit-contrast.mts",
+    "icons": "node --import tsx scripts/make-favicon.mts",
+    "test": "node --conditions=react-server --import tsx --env-file=.env --env-file=.env.local --test tests/*.test.ts"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "jose": "^6.2.12",
     "next": "16.3.5",
+    "pdfkit": "^0.20.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "viem": "^2.56.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^20",
+    "@types/pdfkit": "^0.17.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "axe-core": "^4.13.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "jsdom": "^29.1.1",
+    "prisma": "^7.10.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }
